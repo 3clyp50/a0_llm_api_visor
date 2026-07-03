@@ -164,7 +164,14 @@ export const store = createStore("a0LlmApiVisor", {
 
   resetLabel() {
     if (!this.loaded) return "Reset --";
-    return "Reset 00:00 UTC";
+    const phase = Math.max(0, Math.min(1, Number(this.summary().epoch_phase || 0)));
+    const minutes = Math.round((1 - phase) * 24 * 60);
+    if (minutes <= 0) return "Reset soon";
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    if (hours && rest) return `Reset in ${hours}h ${rest}m`;
+    if (hours) return `Reset in ${hours}h`;
+    return `Reset in ${rest}m`;
   },
 
   showWalletLine() {
