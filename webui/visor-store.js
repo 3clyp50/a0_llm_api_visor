@@ -11,16 +11,19 @@ export const store = createStore("a0LlmApiVisor", {
   error: "",
   response: null,
   pollTimer: null,
+  mountCount: 0,
   refreshIntervalMs: 300000,
 
   init() {},
 
   onOpen() {
+    this.mountCount += 1;
     this.refresh({ silent: true });
   },
 
   cleanup() {
-    this.clearPoll();
+    this.mountCount = Math.max(0, this.mountCount - 1);
+    if (this.mountCount === 0) this.clearPoll();
   },
 
   clearPoll() {
@@ -88,6 +91,14 @@ export const store = createStore("a0LlmApiVisor", {
 
   personalization() {
     return this.response?.config || {};
+  },
+
+  sidebarPosition() {
+    return this.personalization().sidebar_position === "bottom" ? "bottom" : "top";
+  },
+
+  showAt(position) {
+    return this.sidebarPosition() === position;
   },
 
   accentColor() {

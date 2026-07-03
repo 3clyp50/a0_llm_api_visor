@@ -1,0 +1,300 @@
+<html>
+<head>
+  <script type="module" src="/plugins/a0_llm_api_visor/webui/visor-store.js"></script>
+</head>
+
+<body>
+  <div
+    x-data="{ position: xAttrs($el).position || 'top', opened: false }"
+    x-effect="if (!opened && $store.a0LlmApiVisor) { opened = true; $store.a0LlmApiVisor.onOpen() }"
+    x-destroy="if (opened) $store.a0LlmApiVisor?.cleanup()"
+  >
+    <template x-if="$store.a0LlmApiVisor && $store.a0LlmApiVisor.showAt(position)">
+      <section
+        class="a0-llm-api-visor"
+        :class="{ loading: $store.a0LlmApiVisor.loading, stale: $store.a0LlmApiVisor.error }"
+        :style="$store.a0LlmApiVisor.panelStyle()"
+      >
+        <div class="a0-llm-api-visor-head">
+          <button
+            class="a0-llm-api-visor-title"
+            type="button"
+            @click="$store.a0LlmApiVisor.openDashboard()"
+            title="Open API dashboard"
+            aria-label="Open Agent Zero API dashboard"
+          >
+            <span class="a0-llm-api-visor-logo" aria-hidden="true"></span>
+            <span>LLM API</span>
+          </button>
+
+          <div class="a0-llm-api-visor-actions">
+            <button
+              type="button"
+              class="a0-llm-api-visor-icon"
+              @click="$store.a0LlmApiVisor.refresh({ force: true })"
+              :disabled="$store.a0LlmApiVisor.loading"
+              title="Refresh"
+              aria-label="Refresh LLM API visor"
+            >
+              <span class="material-symbols-outlined" :class="{ spinning: $store.a0LlmApiVisor.loading }">refresh</span>
+            </button>
+            <button
+              x-show="$store.a0LlmApiVisor.insightsEnabled()"
+              type="button"
+              class="a0-llm-api-visor-icon"
+              @click="$store.a0LlmApiVisor.openInsights()"
+              title="Usage insights"
+              aria-label="Open LLM API usage insights"
+            >
+              <span class="material-symbols-outlined">insights</span>
+            </button>
+            <button
+              type="button"
+              class="a0-llm-api-visor-icon"
+              @click="$store.a0LlmApiVisor.openSettings()"
+              title="Settings"
+              aria-label="Open LLM API visor settings"
+            >
+              <span class="material-symbols-outlined">tune</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="a0-llm-api-visor-main">
+          <div>
+            <span>Credits</span>
+            <strong x-text="$store.a0LlmApiVisor.quotaLabel()"></strong>
+          </div>
+          <div x-show="$store.a0LlmApiVisor.showMultiplier()">
+            <span>Mult.</span>
+            <strong x-text="$store.a0LlmApiVisor.multiplierLabel()"></strong>
+          </div>
+        </div>
+
+        <div class="a0-llm-api-visor-bar" x-show="$store.a0LlmApiVisor.showProgressBar()" aria-hidden="true">
+          <i :style="{ width: $store.a0LlmApiVisor.quotaWidth() }"></i>
+        </div>
+
+        <div class="a0-llm-api-visor-meta" x-show="$store.a0LlmApiVisor.showUsageRow()">
+          <span x-text="$store.a0LlmApiVisor.usageLabel()"></span>
+          <span x-text="$store.a0LlmApiVisor.resetLabel()"></span>
+        </div>
+
+        <div class="a0-llm-api-visor-detail" x-show="$store.a0LlmApiVisor.showDetailLine()">
+          <span x-text="$store.a0LlmApiVisor.detailLabel()"></span>
+        </div>
+
+        <div class="a0-llm-api-visor-wallet" x-show="$store.a0LlmApiVisor.showWalletLine()">
+          <span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span>
+          <span x-text="$store.a0LlmApiVisor.walletLabel()"></span>
+          <strong x-text="$store.a0LlmApiVisor.walletStakeLabel()"></strong>
+        </div>
+      </section>
+    </template>
+  </div>
+</body>
+
+<style>
+  .a0-llm-api-visor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    width: 100%;
+    min-width: 0;
+    margin: 0 0 var(--spacing-sm) 0;
+    padding: 0.65rem;
+    border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-panel) 92%, var(--color-text) 8%), var(--color-panel));
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-text) 7%, transparent);
+    overflow: hidden;
+  }
+
+  .a0-llm-api-visor.stale {
+    opacity: 0.78;
+  }
+
+  .a0-llm-api-visor-head,
+  .a0-llm-api-visor-main,
+  .a0-llm-api-visor-meta,
+  .a0-llm-api-visor-detail,
+  .a0-llm-api-visor-wallet {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .a0-llm-api-visor-head {
+    justify-content: space-between;
+    gap: 0.35rem;
+  }
+
+  .a0-llm-api-visor-title,
+  .a0-llm-api-visor-icon {
+    color: var(--color-text);
+    border: none;
+    background: transparent;
+    padding: 0;
+  }
+
+  .a0-llm-api-visor-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    cursor: pointer;
+    opacity: 0.88;
+    font-size: var(--font-size-small);
+    font-weight: 700;
+  }
+
+  .a0-llm-api-visor-title:hover {
+    opacity: 1;
+  }
+
+  .a0-llm-api-visor-logo {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 0.82rem;
+    height: 1.18rem;
+    background-color: currentColor;
+    -webkit-mask: url("/public/a0-collapsed.svg") center / contain no-repeat;
+    mask: url("/public/a0-collapsed.svg") center / contain no-repeat;
+  }
+
+  .a0-llm-api-visor-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    flex: 0 0 auto;
+  }
+
+  .a0-llm-api-visor-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.72;
+  }
+
+  .a0-llm-api-visor-icon:hover {
+    background-color: var(--color-background-hover);
+    opacity: 1;
+  }
+
+  .a0-llm-api-visor-icon:disabled {
+    cursor: default;
+    opacity: 0.42;
+  }
+
+  .a0-llm-api-visor-icon .material-symbols-outlined {
+    font-size: 1rem;
+  }
+
+  .a0-llm-api-visor-main {
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .a0-llm-api-visor-main div {
+    min-width: 0;
+  }
+
+  .a0-llm-api-visor-main span,
+  .a0-llm-api-visor-meta,
+  .a0-llm-api-visor-detail,
+  .a0-llm-api-visor-wallet {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .a0-llm-api-visor-main strong {
+    display: block;
+    max-width: 7.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text);
+    font-size: 0.98rem;
+    line-height: 1.15;
+  }
+
+  .a0-llm-api-visor-main div:last-child {
+    text-align: right;
+    flex: 0 0 auto;
+  }
+
+  .a0-llm-api-visor-bar {
+    position: relative;
+    width: 100%;
+    height: 0.38rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--color-border) 72%, transparent);
+  }
+
+  .a0-llm-api-visor-bar i {
+    display: block;
+    height: 100%;
+    min-width: 0.25rem;
+    max-width: 100%;
+    border-radius: inherit;
+    background-color: var(--a0-visor-accent, #66b8ff);
+    transition: width 0.28s ease;
+  }
+
+  .a0-llm-api-visor-meta {
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .a0-llm-api-visor-meta span,
+  .a0-llm-api-visor-detail span,
+  .a0-llm-api-visor-wallet span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .a0-llm-api-visor-wallet {
+    gap: 0.3rem;
+    padding-top: 0.1rem;
+  }
+
+  .a0-llm-api-visor-detail {
+    min-height: 1rem;
+  }
+
+  .a0-llm-api-visor-wallet .material-symbols-outlined {
+    flex: 0 0 auto;
+    font-size: 0.95rem;
+  }
+
+  .a0-llm-api-visor-wallet strong {
+    margin-left: auto;
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+  }
+
+  .a0-llm-api-visor .spinning {
+    animation: a0-llm-api-visor-spin 0.85s linear infinite;
+  }
+
+  .light-mode .a0-llm-api-visor {
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--color-background) 94%, var(--color-text) 6%), var(--color-background));
+  }
+
+  @keyframes a0-llm-api-visor-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+</html>

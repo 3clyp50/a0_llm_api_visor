@@ -17,6 +17,7 @@ from usr.plugins.a0_llm_api_visor.helpers import usage_tracker
 
 PLUGIN_NAME = "a0_llm_api_visor"
 PLUGIN_TITLE = "LLM API Visor"
+PLUGIN_VERSION = "0.2.1"
 ALLOWED_API_HOSTS = {"api.agent-zero.ai", "tapi.agent-zero.ai"}
 WALLET_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
@@ -28,6 +29,7 @@ DEFAULT_CONFIG = {
     "refresh_interval_seconds": 300,
     "cache_seconds": 45,
     # Personalization
+    "sidebar_position": "top",
     "accent_color": "#66b8ff",
     "background_style": "default",
     "custom_background_color": "",
@@ -41,6 +43,7 @@ DEFAULT_CONFIG = {
 }
 
 PERSONALIZATION_KEYS = (
+    "sidebar_position",
     "accent_color",
     "background_style",
     "custom_background_color",
@@ -190,6 +193,9 @@ def _personalization(config: dict[str, Any]) -> dict[str, Any]:
         style = "default"
 
     return {
+        "sidebar_position": (
+            "bottom" if str(config.get("sidebar_position") or "").strip().lower() == "bottom" else "top"
+        ),
         "accent_color": accent,
         "background_style": style,
         "custom_background_color": custom_bg,
@@ -234,7 +240,7 @@ def _post_json(api_base_url: str, endpoint: str, payload: dict[str, Any]) -> dic
         headers={
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "Agent-Zero-LLM-API-Visor/0.2.0",
+            "User-Agent": f"Agent-Zero-LLM-API-Visor/{PLUGIN_VERSION}",
         },
     )
 

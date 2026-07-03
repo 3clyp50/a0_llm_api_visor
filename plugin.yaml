@@ -1,7 +1,7 @@
 name: a0_llm_api_visor
 title: LLM API Visor
 description: Shows Agent Zero LLM API wallet daily credits, multiplier, reset, usage, and optional global pool data in the left sidebar.
-version: 0.2.0
+version: 0.2.1
 settings_sections:
   - external
 per_project_config: false

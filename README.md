@@ -30,6 +30,8 @@ Open **Settings -> External Services -> LLM API Visor**.
   the personal daily credits shown on the dashboard.
 - **Show wallet metrics**: keeps wallet daily credits as the primary sidebar
   value. When disabled, the visor shows an explicit global pool view instead.
+- **Sidebar position**: places the visor in the upper sidebar or near the lower
+  sidebar controls.
 - **Personalization**: controls the sidebar accent color, background style, and
   which rows are visible.
 - **Usage insights**: optional local-only tracking. It stores aggregate usage

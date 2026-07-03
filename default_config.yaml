@@ -5,6 +5,7 @@ show_wallet_metrics: true
 refresh_interval_seconds: 300
 cache_seconds: 45
 # Personalization
+sidebar_position: top
 accent_color: "#66b8ff"
 background_style: default
 custom_background_color: ""
