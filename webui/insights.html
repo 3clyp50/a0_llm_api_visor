@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Usage Insights</title>
+  <script type="module" src="/plugins/a0_llm_api_visor/webui/insights-store.js"></script>
+</head>
+
+<body>
+  <div x-data>
+    <template x-if="$store.a0LlmApiVisorInsights">
+      <div
+        class="a0-visor-insights"
+        x-create="$store.a0LlmApiVisorInsights.onOpen()"
+        x-destroy="$store.a0LlmApiVisorInsights.cleanup()"
+      >
+        <div class="avi-toolbar">
+          <div class="avi-tabs">
+            <button
+              type="button"
+              :class="{ active: $store.a0LlmApiVisorInsights.tab === 'overview' }"
+              @click="$store.a0LlmApiVisorInsights.setTab('overview')"
+            >Stats</button>
+            <button
+              type="button"
+              :class="{ active: $store.a0LlmApiVisorInsights.tab === 'models' }"
+              @click="$store.a0LlmApiVisorInsights.setTab('models')"
+            >Models</button>
+          </div>
+          <div class="avi-ranges">
+            <template x-for="range in ['all', '30d', '7d']" :key="range">
+              <button
+                type="button"
+                :class="{ active: $store.a0LlmApiVisorInsights.range === range }"
+                @click="$store.a0LlmApiVisorInsights.setRange(range)"
+                x-text="range === 'all' ? 'All' : range"
+              ></button>
+            </template>
+          </div>
+        </div>
+
+        <template x-if="!$store.a0LlmApiVisorInsights.trackingEnabled && !$store.a0LlmApiVisorInsights.hasData()">
+          <div class="avi-empty">
+            <span class="material-symbols-outlined">insights</span>
+            <p>Usage insights is turned off.</p>
+            <p class="avi-empty-hint">Enable "Usage insights" in the plugin settings to start collecting local statistics.</p>
+          </div>
+        </template>
+
+        <template x-if="$store.a0LlmApiVisorInsights.trackingEnabled && !$store.a0LlmApiVisorInsights.hasData()">
+          <div class="avi-empty">
+            <span class="material-symbols-outlined">hourglass_empty</span>
+            <p>No statistics collected yet.</p>
+            <p class="avi-empty-hint">Data appears here after the visor observes API activity. Keep using the LLM API and check back soon.</p>
+          </div>
+        </template>
+
+        <template x-if="$store.a0LlmApiVisorInsights.hasData() && $store.a0LlmApiVisorInsights.tab === 'overview'">
+          <div>
+            <div class="avi-cards">
+              <div class="avi-card">
+                <span>Requests</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalRequests())"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Total tokens</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalTokens())"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Tokens in</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalTokensIn())"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Tokens out</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalTokensOut())"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Credits used</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.formatMoney($store.a0LlmApiVisorInsights.totalCredits())"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Active days</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.activeDays()"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Current streak</span>
+                <strong x-text="`${$store.a0LlmApiVisorInsights.streaks().current}d`"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Longest streak</span>
+                <strong x-text="`${$store.a0LlmApiVisorInsights.streaks().longest}d`"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Peak hour</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.peakHourLabel()"></strong>
+              </div>
+              <div class="avi-card">
+                <span>Favorite model</span>
+                <strong x-text="$store.a0LlmApiVisorInsights.favoriteModel()"></strong>
+              </div>
+            </div>
+
+            <div class="avi-heatmap" role="img" aria-label="Daily token usage heatmap">
+              <template x-for="(week, wi) in $store.a0LlmApiVisorInsights.heatmapWeeks()" :key="wi">
+                <div class="avi-heatmap-col">
+                  <template x-for="cell in week" :key="cell.key">
+                    <i
+                      :class="`level-${cell.level} ${cell.future ? 'future' : ''}`"
+                      :title="$store.a0LlmApiVisorInsights.cellTitle(cell)"
+                    ></i>
+                  </template>
+                </div>
+              </template>
+            </div>
+            <div class="avi-heatmap-legend">
+              <span>Less</span>
+              <i class="level-0"></i><i class="level-1"></i><i class="level-2"></i><i class="level-3"></i><i class="level-4"></i>
+              <span>More</span>
+            </div>
+          </div>
+        </template>
+
+        <template x-if="$store.a0LlmApiVisorInsights.hasData() && $store.a0LlmApiVisorInsights.tab === 'models'">
+          <div>
+            <div class="avi-chart">
+              <div class="avi-chart-axis">
+                <span x-text="$store.a0LlmApiVisorInsights.chartAxisMax()"></span>
+                <span>0</span>
+              </div>
+              <div class="avi-chart-bars">
+                <template x-for="bar in $store.a0LlmApiVisorInsights.modelBars()" :key="bar.date">
+                  <div class="avi-chart-slot" :title="bar.title">
+                    <div class="avi-chart-bar" :style="{ height: `${bar.heightPercent}%` }">
+                      <template x-for="segment in bar.segments" :key="segment.id">
+                        <i :style="{ height: `${segment.percent}%`, backgroundColor: segment.color }"></i>
+                      </template>
+                    </div>
+                    <span class="avi-chart-label" x-text="bar.label"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="avi-models">
+              <template x-for="model in $store.a0LlmApiVisorInsights.modelAggregates()" :key="model.id">
+                <div class="avi-model-row">
+                  <i class="avi-model-dot" :style="{ backgroundColor: model.color }"></i>
+                  <span class="avi-model-name" x-text="model.name"></span>
+                  <span class="avi-model-tokens"
+                    x-text="`${$store.a0LlmApiVisorInsights.formatCompact(model.tokens_input)} in · ${$store.a0LlmApiVisorInsights.formatCompact(model.tokens_output)} out`"></span>
+                  <strong class="avi-model-percent" x-text="`${model.percent.toFixed(1)}%`"></strong>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+
+        <div class="avi-footer">
+          <span>Statistics are stored locally inside the plugin folder. Nothing is sent anywhere.</span>
+          <button
+            type="button"
+            class="avi-clear"
+            x-show="$store.a0LlmApiVisorInsights.hasData()"
+            @click="$store.a0LlmApiVisorInsights.clearHistory()"
+          >Clear history</button>
+        </div>
+      </div>
+    </template>
+  </div>
+</body>
+
+<style>
+  .a0-visor-insights {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: min(38rem, 90vw);
+  }
+
+  .avi-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .avi-tabs,
+  .avi-ranges {
+    display: inline-flex;
+    gap: 0.25rem;
+    padding: 0.2rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--color-border) 45%, transparent);
+  }
+
+  .avi-tabs button,
+  .avi-ranges button {
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    font-size: var(--font-size-small);
+    cursor: pointer;
+  }
+
+  .avi-tabs button.active,
+  .avi-ranges button.active {
+    background: var(--color-panel);
+    color: var(--color-text);
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  }
+
+  .avi-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.5rem;
+  }
+
+  .avi-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--color-panel) 92%, var(--color-text) 8%);
+  }
+
+  .avi-card span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .avi-card strong {
+    color: var(--color-text);
+    font-size: 1.05rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .avi-heatmap {
+    display: flex;
+    gap: 3px;
+    margin-top: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .avi-heatmap-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .avi-heatmap i,
+  .avi-heatmap-legend i {
+    display: block;
+    width: 0.85rem;
+    height: 0.85rem;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--color-border) 55%, transparent);
+  }
+
+  .avi-heatmap i.future {
+    visibility: hidden;
+  }
+
+  .avi-heatmap i.level-1, .avi-heatmap-legend i.level-1 { background: color-mix(in srgb, var(--avi-accent, #66b8ff) 30%, transparent); }
+  .avi-heatmap i.level-2, .avi-heatmap-legend i.level-2 { background: color-mix(in srgb, var(--avi-accent, #66b8ff) 55%, transparent); }
+  .avi-heatmap i.level-3, .avi-heatmap-legend i.level-3 { background: color-mix(in srgb, var(--avi-accent, #66b8ff) 78%, transparent); }
+  .avi-heatmap i.level-4, .avi-heatmap-legend i.level-4 { background: var(--avi-accent, #66b8ff); }
+
+  .avi-heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    margin-top: 0.35rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .avi-heatmap-legend span {
+    margin: 0 0.25rem;
+  }
+
+  .avi-chart {
+    display: flex;
+    gap: 0.5rem;
+    height: 13rem;
+  }
+
+  .avi-chart-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding-bottom: 1.3rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    text-align: right;
+    min-width: 3rem;
+  }
+
+  .avi-chart-bars {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+    gap: 0.3rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+    padding-bottom: 0;
+    overflow-x: auto;
+  }
+
+  .avi-chart-slot {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    flex: 1;
+    min-width: 1.4rem;
+    position: relative;
+  }
+
+  .avi-chart-bar {
+    display: flex;
+    flex-direction: column-reverse;
+    width: 70%;
+    min-height: 2px;
+    border-radius: 3px 3px 0 0;
+    overflow: hidden;
+  }
+
+  .avi-chart-bar i {
+    display: block;
+    width: 100%;
+  }
+
+  .avi-chart-label {
+    position: absolute;
+    bottom: -1.25rem;
+    color: var(--color-text-muted);
+    font-size: 0.62rem;
+    white-space: nowrap;
+  }
+
+  .avi-chart-slot:nth-child(even) .avi-chart-label {
+    visibility: hidden;
+  }
+
+  .avi-models {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 1.9rem;
+  }
+
+  .avi-model-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--font-size-small);
+  }
+
+  .avi-model-dot {
+    flex: 0 0 auto;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 3px;
+  }
+
+  .avi-model-name {
+    color: var(--color-text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .avi-model-tokens {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+  }
+
+  .avi-model-percent {
+    color: var(--color-text);
+    min-width: 3.2rem;
+    text-align: right;
+  }
+
+  .avi-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 2.5rem 1rem;
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  .avi-empty .material-symbols-outlined {
+    font-size: 2.2rem;
+    opacity: 0.6;
+  }
+
+  .avi-empty p {
+    margin: 0;
+  }
+
+  .avi-empty-hint {
+    font-size: var(--font-size-small);
+    opacity: 0.8;
+  }
+
+  .avi-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .avi-clear {
+    border: 1px solid color-mix(in srgb, var(--color-border) 90%, transparent);
+    background: transparent;
+    color: var(--color-text-muted);
+    border-radius: 6px;
+    padding: 0.25rem 0.6rem;
+    font-size: var(--font-size-xs);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .avi-clear:hover {
+    color: var(--color-text);
+    background: var(--color-background-hover);
+  }
+</style>
+</html>

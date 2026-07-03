@@ -1,0 +1,301 @@
+<html>
+<head>
+  <title>LLM API Visor</title>
+  <script type="module" src="/plugins/a0_llm_api_visor/webui/visor-store.js"></script>
+</head>
+
+<body>
+  <div x-data>
+    <template x-if="config">
+      <div class="a0-llm-api-visor-settings">
+        <div class="section-title">LLM API Visor</div>
+        <div class="section-description">
+          Sidebar status for the Agent Zero LLM API dashboard.
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Wallet address</div>
+            <div class="field-description">Public wallet address used to show your remaining daily API credits.</div>
+          </div>
+          <div class="field-control">
+            <input
+              type="text"
+              x-model.trim="config.wallet_address"
+              placeholder="0x..."
+              spellcheck="false"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Show wallet metrics</div>
+            <div class="field-description">Use personal wallet credits as the primary sidebar value. Turn off only for the global pool view.</div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.show_wallet_metrics" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- ===== API information ===== -->
+        <div class="section-title avs-section">API information</div>
+        <div class="section-description">
+          Live details reported by the Agent Zero LLM API.
+        </div>
+
+        <template x-if="$store.a0LlmApiVisor?.loaded">
+          <div class="avs-info-grid">
+            <div class="avs-info">
+              <span>API host</span>
+              <strong x-text="$store.a0LlmApiVisor.response?.config?.api_host || '--'"></strong>
+            </div>
+            <div class="avs-info">
+              <span>Daily reset</span>
+              <strong>00:00 UTC</strong>
+            </div>
+            <div class="avs-info">
+              <span>Multiplier</span>
+              <strong x-text="$store.a0LlmApiVisor.multiplierLabel()"></strong>
+            </div>
+            <div class="avs-info">
+              <span>Epoch progress</span>
+              <strong x-text="`${(Number($store.a0LlmApiVisor.summary().epoch_phase || 0) * 100).toFixed(1)}%`"></strong>
+            </div>
+            <div class="avs-info">
+              <span>Global pool</span>
+              <strong x-text="`${$store.a0LlmApiVisor.formatMoney($store.a0LlmApiVisor.summary().global_remaining_quota, 0)} / ${$store.a0LlmApiVisor.formatMoney($store.a0LlmApiVisor.summary().global_base_quota, 0)}`"></strong>
+            </div>
+            <div class="avs-info">
+              <span>Global requests today</span>
+              <strong x-text="$store.a0LlmApiVisor.formatCompact($store.a0LlmApiVisor.summary().global_requests)"></strong>
+            </div>
+            <div class="avs-info">
+              <span>Global tokens in / out</span>
+              <strong x-text="`${$store.a0LlmApiVisor.formatCompact($store.a0LlmApiVisor.summary().global_tokens_input)} / ${$store.a0LlmApiVisor.formatCompact($store.a0LlmApiVisor.summary().global_tokens_output)}`"></strong>
+            </div>
+            <div class="avs-info">
+              <span>Global stake</span>
+              <strong x-text="`${$store.a0LlmApiVisor.formatCompact($store.a0LlmApiVisor.summary().global_stake)} AOT`"></strong>
+            </div>
+          </div>
+        </template>
+        <template x-if="!$store.a0LlmApiVisor?.loaded">
+          <div class="avs-info-empty">API data not loaded yet. It appears after the sidebar visor fetches the dashboard.</div>
+        </template>
+        <div class="avs-link">
+          <a href="#" @click.prevent="$store.a0LlmApiVisor?.openDashboard()">Open the full API dashboard</a>
+        </div>
+
+        <!-- ===== Personalization ===== -->
+        <div class="section-title avs-section">Personalization</div>
+        <div class="section-description">
+          Customize how the sidebar visor looks and which information it shows.
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Accent color</div>
+            <div class="field-description">Color of the credits progress bar and highlights.</div>
+          </div>
+          <div class="field-control avs-color-control">
+            <input type="color" x-model="config.accent_color" />
+            <input type="text" class="avs-color-text" x-model.trim="config.accent_color" placeholder="#66b8ff" spellcheck="false" />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Background style</div>
+            <div class="field-description">Panel background of the sidebar visor. Pick "Custom color" to choose your own.</div>
+          </div>
+          <div class="field-control">
+            <select x-model="config.background_style">
+              <option value="default">Default (subtle gradient)</option>
+              <option value="flat">Flat panel</option>
+              <option value="custom">Custom color</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field" x-show="config.background_style === 'custom'">
+          <div class="field-label">
+            <div class="field-title">Custom background color</div>
+            <div class="field-description">Used when the background style is set to "Custom color".</div>
+          </div>
+          <div class="field-control avs-color-control">
+            <input type="color" x-model="config.custom_background_color" />
+            <input type="text" class="avs-color-text" x-model.trim="config.custom_background_color" placeholder="#1c2733" spellcheck="false" />
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Show progress bar</div>
+            <div class="field-description">Credits progress bar under the main numbers.</div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.show_progress_bar" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Show multiplier</div>
+            <div class="field-description">Current reward multiplier next to the credits value.</div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.show_multiplier" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Show requests and reset</div>
+            <div class="field-description">Row with today's request count and the daily reset time.</div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.show_usage_row" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Show quota details</div>
+            <div class="field-description">Base / daily / used credits breakdown line.</div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.show_detail_line" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Show wallet line</div>
+            <div class="field-description">Wallet nickname and stake score at the bottom of the visor.</div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.show_wallet_line" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- ===== Usage insights ===== -->
+        <div class="section-title avs-section">Usage insights</div>
+        <div class="section-description">
+          Optional, local-only statistics about your own API usage.
+        </div>
+
+        <div class="field">
+          <div class="field-label">
+            <div class="field-title">Usage insights</div>
+            <div class="field-description">
+              Track your daily requests, tokens in/out and per-model usage for personal statistics.
+              Data is collected from the API dashboard while the visor refreshes, stored only inside the
+              plugin folder on this machine, and never sent anywhere. Requires a wallet address.
+            </div>
+          </div>
+          <div class="field-control">
+            <label class="toggle">
+              <input type="checkbox" x-model="config.usage_insights_enabled" />
+              <span class="toggler"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="avs-link">
+          <a href="#" @click.prevent="$store.a0LlmApiVisor?.openInsights()">Open usage insights</a>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <style>
+    .a0-llm-api-visor-settings .field-control input,
+    .a0-llm-api-visor-settings .field-control select {
+      width: min(24rem, 100%);
+    }
+
+    .a0-llm-api-visor-settings .avs-section {
+      margin-top: 1.5rem;
+    }
+
+    .a0-llm-api-visor-settings .avs-color-control {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .a0-llm-api-visor-settings .avs-color-control input[type="color"] {
+      width: 2.6rem;
+      height: 2rem;
+      padding: 0.15rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .a0-llm-api-visor-settings .avs-color-text {
+      width: 7.5rem !important;
+    }
+
+    .a0-llm-api-visor-settings .avs-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+
+    .a0-llm-api-visor-settings .avs-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      padding: 0.5rem 0.65rem;
+      border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--color-panel) 92%, var(--color-text) 8%);
+    }
+
+    .a0-llm-api-visor-settings .avs-info span {
+      color: var(--color-text-muted);
+      font-size: var(--font-size-xs);
+    }
+
+    .a0-llm-api-visor-settings .avs-info strong {
+      color: var(--color-text);
+      font-size: var(--font-size-small);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .a0-llm-api-visor-settings .avs-info-empty {
+      margin: 0.75rem 0;
+      color: var(--color-text-muted);
+      font-size: var(--font-size-small);
+    }
+
+    .a0-llm-api-visor-settings .avs-link {
+      margin: 0.35rem 0 0.5rem;
+      font-size: var(--font-size-small);
+    }
+  </style>
+</body>
+</html>

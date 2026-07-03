@@ -1,0 +1,17 @@
+api_base_url: https://api.agent-zero.ai
+dashboard_url: https://www.agent-zero.ai/p/community/api-dashboard/
+wallet_address: ""
+show_wallet_metrics: true
+refresh_interval_seconds: 300
+cache_seconds: 45
+# Personalization
+accent_color: "#66b8ff"
+background_style: default
+custom_background_color: ""
+show_progress_bar: true
+show_multiplier: true
+show_usage_row: true
+show_detail_line: true
+show_wallet_line: true
+# Usage insights (opt-in local stats tracking)
+usage_insights_enabled: false
