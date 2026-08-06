@@ -56,8 +56,21 @@ class KeccakTest(unittest.TestCase):
         )
 
     def test_input_longer_than_rate(self):
-        # 200 bytes > 136-byte rate, exercises multi-block absorption
-        self.assertEqual(len(eip55.keccak256(b"x" * 200)), 64)
+        # 200 bytes > 136-byte rate, exercises two-block absorption.
+        # Expected digests cross-checked against OpenSSL's native KECCAK-256:
+        #   printf 'x%.0s' $(seq 1 200) | openssl dgst -keccak-256
+        self.assertEqual(
+            eip55.keccak256(b"x" * 200),
+            "3c3800defb6a25a70a2737e0716eeb5d270559ad3cad8f6abddac58802d7158e",
+        )
+
+    def test_input_spanning_three_blocks(self):
+        # 300 bytes > 2 x 136-byte rate, exercises three-block absorption.
+        #   printf 'y%.0s' $(seq 1 300) | openssl dgst -keccak-256
+        self.assertEqual(
+            eip55.keccak256(b"y" * 300),
+            "49cc4a66b35d20d77a48642a8bb66f5d8b5f314eb710b8768a8827d2d206a17f",
+        )
 
 
 class ChecksumTest(unittest.TestCase):

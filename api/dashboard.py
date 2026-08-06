@@ -226,6 +226,8 @@ def _normalize_wallet_address(value: str) -> str:
     candidate = value.strip()
     if not candidate:
         return ""
+    if candidate[:2].lower() == "0x":
+        candidate = "0x" + candidate[2:]
     if not WALLET_ADDRESS_RE.match(candidate):
         return ""
     return to_checksum_address(candidate) or candidate
