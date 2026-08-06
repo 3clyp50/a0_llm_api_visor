@@ -13,6 +13,7 @@ from helpers.api import ApiHandler, Request, Response
 from helpers import plugins
 
 from usr.plugins.a0_llm_api_visor.helpers import usage_tracker
+from usr.plugins.a0_llm_api_visor.helpers.eip55 import to_checksum_address
 
 
 PLUGIN_NAME = "a0_llm_api_visor"
@@ -216,12 +217,20 @@ def _normalize_api_base_url(value: str) -> str:
 
 
 def _normalize_wallet_address(value: str) -> str:
+    """Validate and EIP-55 checksum a wallet address.
+
+    The upstream API keys stake and quota records by the exact checksummed
+    string, so a lowercase address returns HTTP 200 with all-zero values
+    instead of an error. Normalising here makes input casing irrelevant.
+    """
     candidate = value.strip()
     if not candidate:
         return ""
+    if candidate[:2].lower() == "0x":
+        candidate = "0x" + candidate[2:]
     if not WALLET_ADDRESS_RE.match(candidate):
         return ""
-    return candidate
+    return to_checksum_address(candidate) or candidate
 
 
 def _post_json(api_base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
