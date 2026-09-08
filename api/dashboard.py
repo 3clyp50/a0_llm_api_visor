@@ -341,7 +341,7 @@ def _build_summary(
             global_remaining_quota,
             global_base_quota,
         ),
-        "global_stake": _number(public_dashboard.get("globalStake")),
+        "global_stake_score": _number(public_dashboard.get("globalStake")),
         "global_requests": _number(global_usage.get("requests")),
         "global_tokens_input": _number(global_usage.get("tokens_input")),
         "global_tokens_output": _number(global_usage.get("tokens_output")),
