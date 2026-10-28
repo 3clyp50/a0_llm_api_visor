@@ -58,6 +58,8 @@ export const store = createStore("a0LlmApiVisor", {
       this.refreshIntervalMs = Math.max(30, Math.min(3600, seconds)) * 1000;
       this.schedulePoll();
     } catch (error) {
+      this.response = null;
+      this.loaded = false;
       this.error = error?.message || "Could not load Agent Zero LLM API data.";
       if (!silent) void toastFrontendError(this.error, SOURCE_TITLE);
       this.schedulePoll();
@@ -139,9 +141,10 @@ export const store = createStore("a0LlmApiVisor", {
   quotaLabel() {
     if (!this.loaded) return this.loading ? "..." : "--";
     const summary = this.summary();
-    if (summary.mode === "needs_wallet") return "Set wallet";
-    if (summary.mode === "wallet_unavailable") return "--";
-    if (summary.mode === "wallet") {
+    if (summary.mode === "needs_key") return "Set API key";
+    if (summary.mode === "key_unavailable") return "--";
+    if (summary.mode === "key") {
+      if (["disabled", "expired", "not-yet-valid"].includes(summary.key_status)) return this.statusLabel();
       return this.formatMoney(summary.user_remaining_quota, 2);
     }
     const remaining = Number(summary.remaining_quota || 0);
@@ -152,10 +155,8 @@ export const store = createStore("a0LlmApiVisor", {
 
   quotaWidth() {
     const summary = this.summary();
-    const percent =
-      summary.mode === "wallet"
-        ? Number(summary.user_quota_percent || 0)
-        : Number(summary.quota_percent || 0);
+    const percent = ["disabled", "expired", "not-yet-valid"].includes(summary.key_status)
+      ? 0 : Number(summary.quota_percent || 0);
     return `${Math.max(0, Math.min(100, percent)).toFixed(0)}%`;
   },
 
@@ -167,16 +168,19 @@ export const store = createStore("a0LlmApiVisor", {
   usageLabel() {
     if (!this.loaded) return "Usage --";
     const summary = this.summary();
-    if (summary.mode === "needs_wallet") return "Wallet required";
-    if (summary.mode === "wallet_unavailable") return "Wallet unavailable";
-    const requests = summary.mode === "wallet" ? summary.user_requests : summary.global_requests;
-    return `${this.formatCompact(requests)} req`;
+    if (summary.mode === "needs_key") return "API key required";
+    if (summary.mode === "key_unavailable") return "API key unavailable";
+    if (summary.mode === "key") return `${this.formatMoney(summary.user_used_quota, 2)} used`;
+    return `${this.formatCompact(summary.global_requests)} req`;
   },
 
   resetLabel() {
     if (!this.loaded) return "Reset --";
     const phase = Math.max(0, Math.min(1, Number(this.summary().epoch_phase || 0)));
-    const minutes = Math.round((1 - phase) * 24 * 60);
+    const resetAt = Date.parse(this.summary().reset_at || "");
+    const minutes = Number.isFinite(resetAt)
+      ? Math.max(0, Math.ceil((resetAt - Date.now()) / 60000))
+      : Math.round((1 - phase) * 24 * 60);
     if (minutes <= 0) return "Reset soon";
     const hours = Math.floor(minutes / 60);
     const rest = minutes % 60;
@@ -186,47 +190,25 @@ export const store = createStore("a0LlmApiVisor", {
   },
 
   showWalletLine() {
-    if (this.personalization().show_wallet_line === false) return false;
-    const summary = this.summary();
-    return !!summary.wallet_address && (summary.mode === "wallet" || !!summary.wallet_error);
+    return this.personalization().show_wallet_line !== false && this.summary().mode === "key";
   },
 
   showDetailLine() {
-    if (this.personalization().show_detail_line === false) return false;
-    const summary = this.summary();
-    return ["wallet", "needs_wallet", "wallet_unavailable", "global"].includes(summary.mode);
+    return this.personalization().show_detail_line !== false;
   },
 
   detailLabel() {
     const summary = this.summary();
-    if (summary.mode === "wallet") {
-      const base = this.formatMoney(summary.user_base_quota, 2);
-      const daily = this.formatMoney(summary.user_current_quota, 2);
-      const used = this.formatMoney(summary.user_used_quota, 2);
-      return `Base ${base} / Daily ${daily} / Used ${used}`;
-    }
-    if (summary.mode === "needs_wallet") return "Add your public wallet address in settings";
-    if (summary.mode === "wallet_unavailable") return summary.wallet_error || "Wallet quota could not be loaded";
+    if (summary.mode === "key") return `Remaining today: ${this.formatMoney(summary.user_remaining_quota, 2)}`;
+    if (summary.mode === "needs_key") return "Configure the Agent Zero API key in model settings";
+    if (summary.mode === "key_unavailable") return summary.key_error || "API key status could not be loaded";
     if (summary.mode === "global") return "Global pool view";
     return "";
   },
 
-  walletLabel() {
-    const summary = this.summary();
-    if (summary.wallet_error) return "Wallet unavailable";
-    return summary.wallet_label || "Wallet";
-  },
-
-  walletStakeLabel() {
-    const summary = this.summary();
-    if (summary.wallet_error) return "";
-    if (Number(summary.api_stake_sum || 0) > 0) {
-      return `${this.formatCompact(summary.api_stake_sum)} AOT`;
-    }
-    if (Number(summary.stake_score || 0) > 0) {
-      return `${this.formatCompact(summary.stake_score)} score`;
-    }
-    return "";
+  statusLabel() {
+    const status = this.summary().key_status || "";
+    return status.replaceAll("-", " ").replace(/^./, (letter) => letter.toUpperCase());
   },
 
   formatMoney(value, decimals = 0) {

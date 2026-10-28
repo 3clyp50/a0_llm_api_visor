@@ -1,42 +1,32 @@
 # LLM API Visor
 
-LLM API Visor adds a compact Agent Zero LLM API status panel to Agent Zero's
-left sidebar. It is designed around the wallet-specific **Free Daily API
-Credits** number from the dashboard: remaining daily credits, current dynamic
-quota, base quota, used quota, request usage, reset-cycle progress, and the
-current quota multiplier.
+LLM API Visor shows remaining Agent Zero API credits, today's spend, key status,
+daily reset, and the public quota multiplier in the sidebar. It supports main
+API keys and custom keys with daily limits.
 
-The plugin reads the official Agent Zero API dashboard endpoints through a small
-Agent Zero backend proxy. No LLM API key is stored or displayed by this plugin.
-
-## What It Shows
-
-- Wallet remaining daily API credits as the primary sidebar value.
-- Wallet base quota, current dynamic quota, used quota, and request count.
-- Current quota multiplier and reset-cycle progress.
-- Optional public wallet A0T, ETH, stake score, and API stake total.
-- Explicit global pool view when wallet metrics are disabled.
-- Top wallet model usage when the dashboard returns it.
-- Optional local usage insights for daily requests, token totals, credits used,
-  model split, streaks, peak hour, and a lightweight activity heatmap.
-- Sidebar personalization for accent color, panel background, progress bar,
-  multiplier, usage row, quota details, and wallet line visibility.
+The plugin automatically reads the saved **Agent Zero API** provider key from
+Agent Zero model settings. It sends that key server-side in an Authorization
+header to the official status endpoint. No wallet address or additional key
+entry is needed. Keys, wallet identity, and user-defined key labels are never
+returned to the browser. Private responses are not cached.
 
 ## Configuration
 
-Open **Settings -> External Services -> LLM API Visor**.
+Open the **settings button on the sidebar widget**.
 
-- **Wallet address**: Base/Ethereum-style `0x...` public address used to load
-  the personal daily credits shown on the dashboard.
-- **Show wallet metrics**: keeps wallet daily credits as the primary sidebar
-  value. When disabled, the visor shows an explicit global pool view instead.
-- **Sidebar position**: places the visor in the upper sidebar or near the lower
-  sidebar controls.
-- **Personalization**: controls the sidebar accent color, background style, and
-  which rows are visible.
-- **Usage insights**: optional local-only tracking. It stores aggregate usage
-  statistics in the plugin's own `data/` folder and never records prompts,
-  messages, API keys, or secrets.
+- **Show API key balance** displays the configured key's remaining allowance.
+  Disable it for the public global pool view.
+- **Sidebar position** and **Personalization** control placement, colors, the
+  progress bar, multiplier, usage/reset row, details, and key-status line.
+- **Usage insights** opens the separately stored local analytics. Existing
+  history and the viewer are preserved. The balance widget no longer feeds the
+  old wallet-dashboard snapshots into that collector; the status endpoint does
+  not supply request/token counts or per-model analytics.
+
+The status endpoint must be deployed before using this plugin update. The old
+anonymous wallet lookup is no longer used. Existing wallet-address and private
+cache settings are ignored. A disabled or expired key displays its status;
+missing or invalid credentials display an unavailable state.
 
 ## Community Plugin Layout
 

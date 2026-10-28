@@ -13,26 +13,15 @@
           Sidebar status for the Agent Zero LLM API dashboard.
         </div>
 
-        <div class="field">
-          <div class="field-label">
-            <div class="field-title">Wallet address</div>
-            <div class="field-description">Public wallet address used to show your remaining daily API credits.</div>
-          </div>
-          <div class="field-control">
-            <input
-              type="text"
-              x-model.trim="config.wallet_address"
-              placeholder="0x..."
-              spellcheck="false"
-              autocomplete="off"
-            />
-          </div>
+        <div class="section-description">
+          Uses the saved Agent Zero API key from model settings automatically.
+          Main keys and custom keys are supported. The key stays on the server.
         </div>
 
         <div class="field">
           <div class="field-label">
-            <div class="field-title">Show wallet metrics</div>
-            <div class="field-description">Use personal wallet credits as the primary sidebar value. Turn off only for the global pool view.</div>
+            <div class="field-title">Show API key balance</div>
+            <div class="field-description">Use the configured key’s remaining credits as the primary sidebar value. Turn off only for the global pool view.</div>
           </div>
           <div class="field-control">
             <label class="toggle">
@@ -174,8 +163,8 @@
 
         <div class="field">
           <div class="field-label">
-            <div class="field-title">Show requests and reset</div>
-            <div class="field-description">Row with today's request count and the daily reset time.</div>
+            <div class="field-title">Show usage and reset</div>
+            <div class="field-description">Row with today's spend and the daily reset time.</div>
           </div>
           <div class="field-control">
             <label class="toggle">
@@ -188,7 +177,7 @@
         <div class="field">
           <div class="field-label">
             <div class="field-title">Show quota details</div>
-            <div class="field-description">Base / daily / used credits breakdown line.</div>
+            <div class="field-description">Remaining daily credits detail line.</div>
           </div>
           <div class="field-control">
             <label class="toggle">
@@ -200,8 +189,8 @@
 
         <div class="field">
           <div class="field-label">
-            <div class="field-title">Show wallet line</div>
-            <div class="field-description">Wallet nickname and stake score at the bottom of the visor.</div>
+            <div class="field-title">Show key status</div>
+            <div class="field-description">Availability of the configured API key at the bottom of the visor.</div>
           </div>
           <div class="field-control">
             <label class="toggle">
@@ -221,9 +210,9 @@
           <div class="field-label">
             <div class="field-title">Usage insights</div>
             <div class="field-description">
-              Track your daily requests, tokens in/out and per-model usage for personal statistics.
-              Data is collected from the API dashboard while the visor refreshes, stored only inside the
-              plugin folder on this machine, and never sent anywhere. Requires a wallet address.
+              View your separately collected daily requests, token totals and per-model usage.
+              History is stored only inside the plugin folder on this machine and never sent anywhere.
+              The balance widget does not collect these statistics.
             </div>
           </div>
           <div class="field-control">

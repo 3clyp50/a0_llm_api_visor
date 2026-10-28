@@ -3,31 +3,25 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import re
-import time
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
-from urllib.request import Request as UrlRequest, urlopen
+from urllib.request import HTTPRedirectHandler, Request as UrlRequest, build_opener
 
 from helpers.api import ApiHandler, Request, Response
 from helpers import plugins
-
-from usr.plugins.a0_llm_api_visor.helpers import usage_tracker
-
+import models
 
 PLUGIN_NAME = "a0_llm_api_visor"
 PLUGIN_TITLE = "LLM API Visor"
-PLUGIN_VERSION = "0.2.1"
+PLUGIN_VERSION = "0.3.0"
 ALLOWED_API_HOSTS = {"api.agent-zero.ai", "tapi.agent-zero.ai"}
-WALLET_ADDRESS_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 DEFAULT_CONFIG = {
     "api_base_url": "https://api.agent-zero.ai",
     "dashboard_url": "https://www.agent-zero.ai/p/community/api-dashboard/",
-    "wallet_address": "",
     "show_wallet_metrics": True,
     "refresh_interval_seconds": 300,
-    "cache_seconds": 45,
     # Personalization
     "sidebar_position": "top",
     "accent_color": "#66b8ff",
@@ -38,7 +32,7 @@ DEFAULT_CONFIG = {
     "show_usage_row": True,
     "show_detail_line": True,
     "show_wallet_line": True,
-    # Usage insights (opt-in local stats tracking)
+    # Local usage insights viewer
     "usage_insights_enabled": False,
 }
 
@@ -57,8 +51,6 @@ PERSONALIZATION_KEYS = (
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 BACKGROUND_STYLES = {"default", "flat", "custom"}
 
-_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
-
 
 class Dashboard(ApiHandler):
     async def process(self, input: dict, request: Request) -> dict | Response:
@@ -69,58 +61,19 @@ class Dashboard(ApiHandler):
         except ValueError as exc:
             return _error_response(str(exc), config)
 
-        explicit_wallet = input.get("wallet_address")
-        wallet_source = explicit_wallet if explicit_wallet is not None else config.get("wallet_address", "")
-        wallet_address = _normalize_wallet_address(str(wallet_source or ""))
-        if wallet_source and not wallet_address:
-            return _error_response("Wallet address must be a 0x address with 40 hexadecimal characters.", config)
-
         show_wallet_metrics = bool(config.get("show_wallet_metrics", True))
-        cache_seconds = _int_in_range(config.get("cache_seconds"), minimum=0, maximum=300, default=45)
-        cache_key = json.dumps(
-            {
-                "api_base_url": api_base_url,
-                "wallet_address": wallet_address if show_wallet_metrics and wallet_address else "",
-                "show_wallet_metrics": show_wallet_metrics,
-                "usage_insights_enabled": bool(config.get("usage_insights_enabled", False)),
-                **_personalization(config),
-            },
-            sort_keys=True,
-        )
-
-        if not input.get("force") and cache_seconds > 0:
-            cached = _CACHE.get(cache_key)
-            if cached and time.monotonic() - cached[0] < cache_seconds:
-                response = dict(cached[1])
-                response["cached"] = True
-                return response
-
+        api_key = (models.get_api_key("a0_venice") or "").strip() if show_wallet_metrics else ""
+        if api_key == "None":
+            api_key = ""
         try:
-            public_dashboard = _post_json(api_base_url, "get-api-dashboard-public", {})
-            user_dashboard = None
-            public_wallet = None
-            wallet_error = ""
-
-            if show_wallet_metrics and wallet_address:
+            public_dashboard = _request_json(api_base_url, "get-api-dashboard-public", {})
+            key_status = None
+            key_error = ""
+            if api_key:
                 try:
-                    user_dashboard = _post_json(
-                        api_base_url,
-                        "get-api-dashboard-info",
-                        {"address": wallet_address},
-                    )
-                    public_wallet = _post_json(
-                        api_base_url,
-                        "get-public-wallet-info",
-                        {"address": wallet_address},
-                    )
+                    key_status = _request_json(api_base_url, "v1/api-key/status", api_key=api_key)
                 except Exception as exc:
-                    wallet_error = str(exc)
-
-            if user_dashboard and bool(config.get("usage_insights_enabled", False)):
-                try:
-                    usage_tracker.record_snapshot(user_dashboard)
-                except Exception:
-                    pass  # tracking must never break the dashboard
+                    key_error = str(exc)
 
             response = {
                 "ok": True,
@@ -142,18 +95,12 @@ class Dashboard(ApiHandler):
                 },
                 "summary": _build_summary(
                     public_dashboard=public_dashboard,
-                    user_dashboard=user_dashboard,
-                    public_wallet=public_wallet,
-                    wallet_address=wallet_address if show_wallet_metrics else "",
-                    wallet_requested=show_wallet_metrics,
-                    wallet_error=wallet_error,
+                    key_status=key_status,
+                    key_requested=show_wallet_metrics,
+                    key_configured=bool(api_key),
+                    key_error=key_error,
                 ),
-                "public_dashboard": public_dashboard,
-                "user_dashboard": user_dashboard,
-                "public_wallet": public_wallet,
-                "wallet_error": wallet_error,
             }
-            _CACHE[cache_key] = (time.monotonic(), response)
             return response
         except Exception as exc:
             return _error_response(str(exc), config)
@@ -167,12 +114,6 @@ def _load_config() -> dict[str, Any]:
         minimum=30,
         maximum=3600,
         default=300,
-    )
-    config["cache_seconds"] = _int_in_range(
-        config.get("cache_seconds"),
-        minimum=0,
-        maximum=300,
-        default=45,
     )
     return config
 
@@ -215,145 +156,76 @@ def _normalize_api_base_url(value: str) -> str:
         raise ValueError("API base URL must be api.agent-zero.ai or tapi.agent-zero.ai.")
     if parsed.path and parsed.path != "/":
         raise ValueError("API base URL must point to the API root.")
-    netloc = parsed.hostname
-    if parsed.port:
-        netloc = f"{netloc}:{parsed.port}"
-    return f"https://{netloc}"
+    if parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.port not in (None, 443):
+        raise ValueError("API base URL must be an official HTTPS API root.")
+    return f"https://{parsed.hostname}"
 
 
-def _normalize_wallet_address(value: str) -> str:
-    candidate = value.strip()
-    if not candidate:
-        return ""
-    if not WALLET_ADDRESS_RE.match(candidate):
-        return ""
-    return candidate
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        # A redirect must never forward the saved API key to another URL.
+        return None
 
 
-def _post_json(api_base_url: str, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _request_json(api_base_url: str, endpoint: str, payload: dict[str, Any] | None = None, *, api_key: str = "") -> dict[str, Any]:
     url = urljoin(f"{api_base_url.rstrip('/')}/", endpoint.lstrip("/"))
-    body = json.dumps(payload).encode("utf-8")
-    request = UrlRequest(
-        url,
-        data=body,
-        method="POST",
-        headers={
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": f"Agent-Zero-LLM-API-Visor/{PLUGIN_VERSION}",
-        },
-    )
-
+    headers = {"Accept": "application/json", "User-Agent": f"Agent-Zero-LLM-API-Visor/{PLUGIN_VERSION}"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+    request = UrlRequest(url, data=json.dumps(payload).encode("utf-8") if payload is not None else None, headers=headers)
     try:
-        with urlopen(request, timeout=10) as response:
-            charset = response.headers.get_content_charset() or "utf-8"
-            data = response.read(1024 * 1024).decode(charset)
+        with build_opener(_NoRedirect).open(request, timeout=10) as response:
+            data = response.read(1024 * 1024).decode("utf-8")
     except HTTPError as exc:
-        detail = exc.read(4096).decode("utf-8", errors="replace")
-        raise RuntimeError(f"{endpoint} returned HTTP {exc.code}: {detail}") from exc
+        raise RuntimeError(f"{endpoint} returned HTTP {exc.code}.") from exc
     except URLError as exc:
-        raise RuntimeError(f"{endpoint} could not be reached: {exc.reason}") from exc
-
+        raise RuntimeError(f"{endpoint} could not be reached.") from exc
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"{endpoint} request failed.") from exc
     parsed = json.loads(data)
-    if not isinstance(parsed, dict):
+    if not isinstance(parsed, dict) or parsed.get("error"):
         raise RuntimeError(f"{endpoint} returned an unexpected response.")
-    if parsed.get("error"):
-        raise RuntimeError(str(parsed["error"]))
     return parsed
 
 
 def _build_summary(
     *,
     public_dashboard: dict[str, Any],
-    user_dashboard: dict[str, Any] | None,
-    public_wallet: dict[str, Any] | None,
-    wallet_address: str,
-    wallet_requested: bool,
-    wallet_error: str,
+    key_status: dict[str, Any] | None,
+    key_requested: bool,
+    key_configured: bool,
+    key_error: str,
 ) -> dict[str, Any]:
     public_quota = _dict(public_dashboard.get("quota"))
     public_usage = _dict(public_dashboard.get("usage"))
-    user_quota = _dict(user_dashboard.get("quota") if user_dashboard else None)
-    user_usage = _dict(_dict(user_dashboard.get("usage") if user_dashboard else None).get("user_usage"))
-    global_usage = _dict(
-        _dict(user_dashboard.get("usage") if user_dashboard else None).get("global_usage")
-    ) or public_usage
-    wallet = _dict(public_wallet)
-    wallet_data = _dict(wallet.get("walletData"))
-    usage_by_model = user_dashboard.get("usageByModel") if user_dashboard else []
-    usage_by_model = usage_by_model if isinstance(usage_by_model, list) else []
-
-    has_wallet_quota = bool(user_dashboard and user_quota)
-    wallet_unavailable = bool(wallet_address and wallet_error and not has_wallet_quota)
-    needs_wallet = bool(wallet_requested and not wallet_address)
-    mode = "wallet"
-    if not wallet_requested:
+    status = key_status or {}
+    mode = "key" if key_status else "key_unavailable" if key_configured else "needs_key"
+    if not key_requested:
         mode = "global"
-    elif needs_wallet:
-        mode = "needs_wallet"
-    elif wallet_unavailable:
-        mode = "wallet_unavailable"
-    elif not has_wallet_quota:
-        mode = "wallet_unavailable"
-
-    user_base_quota = _number(user_quota.get("userBaseQuota"))
-    user_current_quota = _number(user_quota.get("userCurrentQuota"))
-    user_remaining_quota = _number(user_quota.get("userRemainingQuota"))
-    user_used_quota = _number(user_quota.get("userUsedQuota"))
-    global_remaining_quota = _number(public_quota.get("globalRemainingQuota"))
-    global_base_quota = _number(public_quota.get("globalBaseQuota"))
-    global_used_quota = _number(public_quota.get("globalUsedQuota"))
-
-    if mode == "wallet":
-        remaining_quota = user_remaining_quota
-        base_quota = user_current_quota
-        used_quota = user_used_quota
-    elif mode == "global":
-        remaining_quota = global_remaining_quota
-        base_quota = global_base_quota
-        used_quota = global_used_quota
-    else:
-        remaining_quota = 0.0
-        base_quota = 0.0
-        used_quota = 0.0
-
+    spent = _number(status.get("spent"))
+    remaining = _number(status.get("effectiveRemaining"))
+    global_remaining = _number(public_quota.get("globalRemainingQuota"))
+    global_base = _number(public_quota.get("globalBaseQuota"))
     return {
         "mode": mode,
-        "wallet_address": wallet_address,
-        "wallet_label": wallet_data.get("nickname") or _short_wallet(wallet_address),
-        "wallet_error": wallet_error,
-        "wallet_required": needs_wallet,
+        "key_status": status.get("status", ""),
+        "key_error": key_error,
+        "reset_at": status.get("resetAt", ""),
         "real_multiplier": _number(public_quota.get("realMultiplier")),
-        "remaining_quota": remaining_quota,
-        "base_quota": base_quota,
-        "used_quota": used_quota,
-        "quota_percent": _percent(remaining_quota, base_quota),
+        "remaining_quota": global_remaining if mode == "global" else remaining,
+        "base_quota": global_base if mode == "global" else spent + remaining,
+        "quota_percent": _percent(global_remaining, global_base) if mode == "global" else _percent(remaining, spent + remaining),
         "epoch_phase": _number(public_quota.get("epochPhase")),
-        "user_base_quota": user_base_quota,
-        "user_current_quota": user_current_quota,
-        "user_remaining_quota": user_remaining_quota,
-        "user_used_quota": user_used_quota,
-        "user_quota_percent": _percent(user_remaining_quota, user_current_quota),
-        "global_remaining_quota": global_remaining_quota,
-        "global_base_quota": global_base_quota,
-        "global_used_quota": global_used_quota,
-        "global_quota_percent": _percent(
-            global_remaining_quota,
-            global_base_quota,
-        ),
+        "user_remaining_quota": remaining,
+        "user_used_quota": spent,
+        "global_remaining_quota": global_remaining,
+        "global_base_quota": global_base,
         "global_stake_score": _number(public_dashboard.get("globalStake")),
-        "global_requests": _number(global_usage.get("requests")),
-        "global_tokens_input": _number(global_usage.get("tokens_input")),
-        "global_tokens_output": _number(global_usage.get("tokens_output")),
-        "user_requests": _number(user_usage.get("requests")),
-        "user_tokens_input": _number(user_usage.get("tokens_input")),
-        "user_tokens_output": _number(user_usage.get("tokens_output")),
-        "balance_a0t": _number(wallet.get("balanceA0T")),
-        "balance_eth": _number(wallet.get("balanceEth")),
-        "stake_score": _number(wallet.get("stakeScore")),
-        "total_stake": _number(wallet.get("stakeSum")),
-        "api_stake_sum": _number(user_dashboard.get("apiStakeSum") if user_dashboard else 0),
-        "top_model": usage_by_model[0] if usage_by_model else None,
+        "global_requests": _number(public_usage.get("requests")),
+        "global_tokens_input": _number(public_usage.get("tokens_input")),
+        "global_tokens_output": _number(public_usage.get("tokens_output")),
     }
 
 
@@ -380,12 +252,6 @@ def _int_in_range(value: Any, *, minimum: int, maximum: int, default: int) -> in
     except (TypeError, ValueError):
         return default
     return max(minimum, min(maximum, parsed))
-
-
-def _short_wallet(address: str) -> str:
-    if not address:
-        return ""
-    return f"{address[:6]}...{address[-4:]}"
 
 
 def _utc_now() -> str:
