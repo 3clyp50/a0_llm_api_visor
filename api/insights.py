@@ -61,9 +61,9 @@ class Insights(ApiHandler):
             day_list.append(
                 {
                     "date": day_key,
-                    "requests": _num(day.get("requests")),
-                    "tokens_input": _num(day.get("tokens_input")),
-                    "tokens_output": _num(day.get("tokens_output")),
+                    "requests": _num(day["requests"]) if "requests" in day else None,
+                    "tokens_input": _num(day["tokens_input"]) if "tokens_input" in day else None,
+                    "tokens_output": _num(day["tokens_output"]) if "tokens_output" in day else None,
                     "credits": _num(day.get("credits")),
                     "hours": hours_out,
                     "models": models_out,

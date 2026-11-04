@@ -38,6 +38,9 @@
           </div>
         </div>
 
+        <p class="avi-empty-hint">New history records daily credit spend. Request, token and model statistics are from older records.</p>
+        <p role="alert" x-show="$store.a0LlmApiVisorInsights.trackingError" x-text="$store.a0LlmApiVisorInsights.trackingError"></p>
+
         <template x-if="!$store.a0LlmApiVisorInsights.trackingEnabled && !$store.a0LlmApiVisorInsights.hasData()">
           <div class="avi-empty">
             <span class="material-symbols-outlined">insights</span>
@@ -57,19 +60,19 @@
         <template x-if="$store.a0LlmApiVisorInsights.hasData() && $store.a0LlmApiVisorInsights.tab === 'overview'">
           <div>
             <div class="avi-cards">
-              <div class="avi-card">
+              <div class="avi-card" x-show="$store.a0LlmApiVisorInsights.hasDetailedData()">
                 <span>Requests</span>
                 <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalRequests())"></strong>
               </div>
-              <div class="avi-card">
+              <div class="avi-card" x-show="$store.a0LlmApiVisorInsights.hasDetailedData()">
                 <span>Total tokens</span>
                 <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalTokens())"></strong>
               </div>
-              <div class="avi-card">
+              <div class="avi-card" x-show="$store.a0LlmApiVisorInsights.hasDetailedData()">
                 <span>Tokens in</span>
                 <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalTokensIn())"></strong>
               </div>
-              <div class="avi-card">
+              <div class="avi-card" x-show="$store.a0LlmApiVisorInsights.hasDetailedData()">
                 <span>Tokens out</span>
                 <strong x-text="$store.a0LlmApiVisorInsights.formatCompact($store.a0LlmApiVisorInsights.totalTokensOut())"></strong>
               </div>
@@ -89,17 +92,17 @@
                 <span>Longest streak</span>
                 <strong x-text="`${$store.a0LlmApiVisorInsights.streaks().longest}d`"></strong>
               </div>
-              <div class="avi-card">
+              <div class="avi-card" x-show="$store.a0LlmApiVisorInsights.hasDetailedData()">
                 <span>Peak hour</span>
                 <strong x-text="$store.a0LlmApiVisorInsights.peakHourLabel()"></strong>
               </div>
-              <div class="avi-card">
+              <div class="avi-card" x-show="$store.a0LlmApiVisorInsights.hasDetailedData()">
                 <span>Favorite model</span>
                 <strong x-text="$store.a0LlmApiVisorInsights.favoriteModel()"></strong>
               </div>
             </div>
 
-            <div class="avi-heatmap" role="img" aria-label="Daily token usage heatmap">
+            <div class="avi-heatmap" role="img" aria-label="Daily credit spend heatmap">
               <template x-for="(week, wi) in $store.a0LlmApiVisorInsights.heatmapWeeks()" :key="wi">
                 <div class="avi-heatmap-col">
                   <template x-for="cell in week" :key="cell.key">
@@ -119,7 +122,13 @@
           </div>
         </template>
 
-        <template x-if="$store.a0LlmApiVisorInsights.hasData() && $store.a0LlmApiVisorInsights.tab === 'models'">
+        <template x-if="$store.a0LlmApiVisorInsights.hasData() && $store.a0LlmApiVisorInsights.tab === 'models' && !$store.a0LlmApiVisorInsights.modelAggregates().length">
+          <div class="avi-empty">
+            <p>Model statistics are unavailable for credit-only history.</p>
+          </div>
+        </template>
+
+        <template x-if="$store.a0LlmApiVisorInsights.hasData() && $store.a0LlmApiVisorInsights.tab === 'models' && $store.a0LlmApiVisorInsights.modelAggregates().length">
           <div>
             <div class="avi-chart">
               <div class="avi-chart-axis">
@@ -173,11 +182,13 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    min-width: min(38rem, 90vw);
+    min-width: 0;
+    width: 100%;
   }
 
   .avi-toolbar {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
@@ -416,6 +427,7 @@
 
   .avi-footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;

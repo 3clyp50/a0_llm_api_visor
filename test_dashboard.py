@@ -5,10 +5,15 @@ import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
+
+tracker_spec = importlib.util.spec_from_file_location("visor_usage_tracker", Path(__file__).parent / "helpers/usage_tracker.py")
+usage_tracker = importlib.util.module_from_spec(tracker_spec)
+tracker_spec.loader.exec_module(usage_tracker)
 
 plugins = types.SimpleNamespace(get_plugin_config=Mock(return_value={}))
 models = types.SimpleNamespace(get_api_key=Mock(return_value="sk-a0-fixture"))
@@ -16,10 +21,14 @@ with patch.dict(sys.modules, {
     "helpers": types.SimpleNamespace(plugins=plugins),
     "helpers.api": types.SimpleNamespace(ApiHandler=object, Request=object, Response=object),
     "models": models,
+    "usr.plugins.a0_llm_api_visor.helpers": types.SimpleNamespace(usage_tracker=usage_tracker),
 }):
     spec = importlib.util.spec_from_file_location("visor_dashboard", Path(__file__).parent / "api/dashboard.py")
     dashboard = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(dashboard)
+    insights_spec = importlib.util.spec_from_file_location("visor_insights", Path(__file__).parent / "api/insights.py")
+    insights = importlib.util.module_from_spec(insights_spec)
+    insights_spec.loader.exec_module(insights)
 
 PUBLIC = {"quota": {"globalBaseQuota": 100, "globalRemainingQuota": 75, "epochPhase": 0.5}, "usage": {"requests": 42}}
 STATUS = {"enabled": True, "status": "active", "dailyUsdCap": 5, "percentageCap": 100, "spent": 0.5, "effectiveRemaining": 4.5, "limitingState": "combined", "resetAt": "2026-10-29T00:00:00.000Z"}
@@ -68,6 +77,30 @@ class DashboardTest(unittest.TestCase):
         self.assertEqual(result["summary"]["mode"], "key_unavailable")
         self.assertEqual(result["summary"]["user_remaining_quota"], 0)
 
+    def test_opt_in_history_uses_key_status_even_in_global_view(self):
+        plugins.get_plugin_config.return_value = {"usage_insights_enabled": True, "show_wallet_metrics": False}
+        with patch.object(dashboard, "_request_json", side_effect=[PUBLIC, STATUS]), patch.object(usage_tracker, "record_key_snapshot") as record:
+            result = asyncio.run(dashboard.Dashboard().process({}, None))
+        record.assert_called_once_with(STATUS)
+        self.assertEqual(result["summary"]["mode"], "global")
+
+    def test_history_off_missing_or_invalid_key_does_not_record(self):
+        for enabled, key, status in [(False, "sk-a0-fixture", STATUS), (True, "", None), (True, "sk-a0-fixture", RuntimeError("HTTP 401"))]:
+            plugins.get_plugin_config.return_value = {"usage_insights_enabled": enabled}
+            models.get_api_key.return_value = key
+            with self.subTest(enabled=enabled, key=bool(key)), patch.object(dashboard, "_request_json", side_effect=[PUBLIC, status]), patch.object(usage_tracker, "record_key_snapshot") as record:
+                asyncio.run(dashboard.Dashboard().process({}, None))
+            record.assert_not_called()
+
+    def test_history_write_failure_keeps_balance_and_reports_safe_error(self):
+        plugins.get_plugin_config.return_value = {"usage_insights_enabled": True}
+        with patch.object(dashboard, "_request_json", side_effect=[PUBLIC, STATUS]), patch.object(usage_tracker, "record_key_snapshot", side_effect=OSError("private filesystem details")):
+            result = asyncio.run(dashboard.Dashboard().process({}, None))
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["summary"]["user_remaining_quota"], 4.5)
+        self.assertEqual(result["tracking_error"], "Could not save local credit history.")
+        self.assertNotIn("private filesystem details", json.dumps(result))
+
     def test_bearer_is_sent_in_header_and_error_body_is_not_exposed(self):
         response = Mock()
         response.read.return_value = json.dumps(STATUS).encode()
@@ -97,6 +130,43 @@ class DashboardTest(unittest.TestCase):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 dashboard._normalize_api_base_url(url)
         self.assertEqual(dashboard._normalize_api_base_url("https://tapi.agent-zero.ai/"), "https://tapi.agent-zero.ai")
+
+
+class CreditHistoryTest(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.addCleanup(patch.stopall)
+        patch.object(usage_tracker, "DATA_DIR", Path(folder.name)).start()
+        patch.object(usage_tracker, "HISTORY_FILE", Path(folder.name) / "usage_history.json").start()
+
+    def test_daily_spend_is_idempotent_preserves_legacy_and_rolls_over(self):
+        legacy = {"epoch": 1, "requests": 4, "tokens_input": 120, "tokens_output": 80, "credits": 0.25, "hours": {"1": {"tokens": 200}}, "models": {"old-model": {"tokens_input": 120}}}
+        initial = {"version": 1, "last": {"epoch": 1, "requests": 4}, "days": {"2026-10-27": legacy}}
+        usage_tracker.HISTORY_FILE.write_text(json.dumps(initial))
+        for spent in (0.5, 0.5, 0.3, 0.8):
+            usage_tracker.record_key_snapshot({**STATUS, "spent": spent, "label": "private label", "secret": "sk-a0-secret"})
+        usage_tracker.record_key_snapshot({**STATUS, "spent": 0.2, "resetAt": "2026-10-30T00:00:00Z"})
+        history = usage_tracker.load_history()
+        self.assertEqual(history["days"]["2026-10-27"], legacy)
+        self.assertEqual(history["days"]["2026-10-28"], {"credits": 0.8})
+        self.assertEqual(history["days"]["2026-10-29"], {"credits": 0.2})
+        self.assertEqual(history["last"], initial["last"])
+        self.assertNotIn("private label", json.dumps(history))
+        self.assertNotIn("sk-a0-secret", json.dumps(history))
+
+        with patch.object(insights.plugins, "get_plugin_config", return_value={"usage_insights_enabled": True}):
+            result = asyncio.run(insights.Insights().process({}, None))
+        self.assertEqual(result["days"][0]["requests"], 4)
+        self.assertIsNone(result["days"][1]["requests"])
+        self.assertIsNone(result["days"][1]["tokens_input"])
+        self.assertEqual(result["days"][1]["credits"], 0.8)
+
+    def test_invalid_or_empty_status_does_not_write_history(self):
+        for status in ({}, {"spent": 1}, {**STATUS, "spent": -1}, {**STATUS, "spent": float("nan")}, {**STATUS, "spent": float("inf")}, {**STATUS, "spent": "bad"}, {**STATUS, "resetAt": "bad"}, {**STATUS, "resetAt": "2026-10-29T00:00:00"}):
+            with self.subTest(status=status):
+                usage_tracker.record_key_snapshot(status)
+        self.assertFalse(usage_tracker.HISTORY_FILE.exists())
 
 
 if __name__ == "__main__":

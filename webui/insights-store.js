@@ -1,5 +1,6 @@
 import { createStore } from "/js/AlpineStore.js";
 import * as api from "/js/api.js";
+import { store as visor } from "./visor-store.js";
 import {
   toastFrontendError,
   toastFrontendSuccess,
@@ -21,6 +22,7 @@ export const store = createStore("a0LlmApiVisorInsights", {
   loading: false,
   loaded: false,
   trackingEnabled: false,
+  trackingError: "",
   days: [],
   tab: "overview",
   range: "all",
@@ -37,6 +39,8 @@ export const store = createStore("a0LlmApiVisorInsights", {
     if (this.loading) return;
     this.loading = true;
     try {
+      await visor.refresh({ silent: true });
+      this.trackingError = visor.response?.tracking_error || visor.error || "";
       const result = await api.callJsonApi("plugins/a0_llm_api_visor/insights", {});
       if (!result?.ok) throw new Error(result?.error || "Could not load usage insights.");
       this.trackingEnabled = !!result.tracking_enabled;
@@ -105,12 +109,16 @@ export const store = createStore("a0LlmApiVisorInsights", {
   },
 
   activeDays() {
-    return this.rangeDays().filter((d) => (d.requests || 0) > 0).length;
+    return this.rangeDays().filter((d) => (d.credits || 0) > 0 || (d.requests || 0) > 0).length;
+  },
+
+  hasDetailedData() {
+    return this.rangeDays().some((d) => d.requests != null || d.tokens_input != null || d.tokens_output != null);
   },
 
   streaks() {
     const active = new Set(
-      this.days.filter((d) => (d.requests || 0) > 0).map((d) => d.date),
+      this.days.filter((d) => (d.credits || 0) > 0 || (d.requests || 0) > 0).map((d) => d.date),
     );
     if (!active.size) return { current: 0, longest: 0 };
 
@@ -166,7 +174,7 @@ export const store = createStore("a0LlmApiVisorInsights", {
 
   heatmapWeeks() {
     const totalsByDate = new Map(
-      this.days.map((d) => [d.date, (d.tokens_input || 0) + (d.tokens_output || 0)]),
+      this.days.map((d) => [d.date, d.credits || 0]),
     );
     const weeksCount = this.range === "7d" ? 2 : this.range === "30d" ? 6 : 20;
 
@@ -204,7 +212,7 @@ export const store = createStore("a0LlmApiVisorInsights", {
 
   cellTitle(cell) {
     if (cell.future) return "";
-    return `${cell.key}: ${this.formatCompact(cell.value)} tokens`;
+    return `${cell.key}: ${this.formatMoney(cell.value)} credits`;
   },
 
   // ----- models tab -----
@@ -293,7 +301,7 @@ export const store = createStore("a0LlmApiVisorInsights", {
 
   hasData() {
     return this.rangeDays().some(
-      (d) => (d.requests || 0) > 0 || (d.tokens_input || 0) + (d.tokens_output || 0) > 0,
+      (d) => (d.credits || 0) > 0 || (d.requests || 0) > 0 || (d.tokens_input || 0) + (d.tokens_output || 0) > 0,
     );
   },
 

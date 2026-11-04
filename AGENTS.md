@@ -11,9 +11,12 @@ Standalone Agent Zero sidebar plugin for the configured API key's remaining allo
 - `webui/visor-store.js`, `visor.html`, and `config.html` own balance/status rendering
   and settings. Legacy `show_wallet_metrics`/`show_wallet_line` flags now control
   the key balance/status views, preserving saved visibility preferences.
-- `api/insights.py`, `helpers/usage_tracker.py`, and `webui/insights*` own separate
-  local analytics. Preserve their data. The balance widget no longer records
-  remote wallet snapshots; it does not fabricate missing request/model counters.
+- `api/insights.py`, `helpers/usage_tracker.py`, and `webui/insights*` own local
+  analytics. Dashboard refreshes record opt-in daily credit spend from key status,
+  including in global display mode. Use `resetAt` to identify the UTC usage day
+  and merge cumulative spend by maximum. Preserve legacy history and never
+  fabricate missing request, token or model counters; those fields stay null in
+  new credit-only records. Recording errors must not break the balance response.
 
 ## Local Contracts
 
@@ -28,5 +31,7 @@ existing framework authentication and CSRF protection.
 ## Verification
 
 `python3 -m unittest test_dashboard.py` checks saved-key selection, safe output,
-missing/rotated credentials, public-only mode, and the HTTP trust boundary using
-mocks. `node --check webui/visor-store.js` checks browser-module syntax.
+missing/rotated credentials, public-only mode, opt-in recording, UTC daily credit
+merging, legacy preservation, and the HTTP trust boundary using mocks.
+`node test_insights.mjs` checks credit-only views, activity, and legacy model data.
+`node --check webui/visor-store.js` checks browser-module syntax.

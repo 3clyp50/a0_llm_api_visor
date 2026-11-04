@@ -18,10 +18,15 @@ Open the **settings button on the sidebar widget**.
   Disable it for the public global pool view.
 - **Sidebar position** and **Personalization** control placement, colors, the
   progress bar, multiplier, usage/reset row, details, and key-status line.
-- **Usage insights** opens the separately stored local analytics. Existing
-  history and the viewer are preserved. The balance widget no longer feeds the
-  old wallet-dashboard snapshots into that collector; the status endpoint does
-  not supply request/token counts or per-model analytics.
+- **Usage insights** records the configured key's daily credit spend whenever
+  the visor refreshes, including when the widget shows the global pool. Opening
+  insights also refreshes the current spend. The credit heatmap, active days and
+  streaks include these new records. Existing history is preserved; request,
+  token and model statistics remain available for older records only because
+  the key status endpoint does not supply those counters.
+
+History is collected while Agent Zero's WebUI is open and the visor is mounted.
+Missed days cannot be reconstructed from the current-day status endpoint.
 
 The status endpoint must be deployed before using this plugin update. The old
 anonymous wallet lookup is no longer used. Existing wallet-address and private

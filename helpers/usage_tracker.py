@@ -9,10 +9,11 @@ per-model splits) are stored - never prompts or message content.
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,29 @@ def _num(value: Any) -> float:
         return float(value or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def record_key_snapshot(status: dict[str, Any]) -> None:
+    """Merge daily credit spend without inventing unavailable usage counters."""
+    try:
+        credits = float(status["spent"])
+        reset = datetime.fromisoformat(status["resetAt"].replace("Z", "+00:00"))
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return
+    if not math.isfinite(credits) or credits <= 0 or reset.tzinfo is None:
+        return
+
+    day_key = (reset.astimezone(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    with _LOCK:
+        history = _load_unlocked()
+        day = history["days"].get(day_key)
+        if not isinstance(day, dict):
+            day = {}
+            history["days"][day_key] = day
+        if credits <= _num(day.get("credits")):
+            return
+        day["credits"] = credits
+        _save_unlocked(history)
 
 
 def record_snapshot(user_dashboard: dict[str, Any]) -> None:

@@ -11,10 +11,11 @@ from urllib.request import HTTPRedirectHandler, Request as UrlRequest, build_ope
 from helpers.api import ApiHandler, Request, Response
 from helpers import plugins
 import models
+from usr.plugins.a0_llm_api_visor.helpers import usage_tracker
 
 PLUGIN_NAME = "a0_llm_api_visor"
 PLUGIN_TITLE = "LLM API Visor"
-PLUGIN_VERSION = "0.3.0"
+PLUGIN_VERSION = "0.3.1"
 ALLOWED_API_HOSTS = {"api.agent-zero.ai", "tapi.agent-zero.ai"}
 
 DEFAULT_CONFIG = {
@@ -62,7 +63,8 @@ class Dashboard(ApiHandler):
             return _error_response(str(exc), config)
 
         show_wallet_metrics = bool(config.get("show_wallet_metrics", True))
-        api_key = (models.get_api_key("a0_venice") or "").strip() if show_wallet_metrics else ""
+        track_usage = bool(config.get("usage_insights_enabled", False))
+        api_key = (models.get_api_key("a0_venice") or "").strip() if show_wallet_metrics or track_usage else ""
         if api_key == "None":
             api_key = ""
         try:
@@ -75,11 +77,19 @@ class Dashboard(ApiHandler):
                 except Exception as exc:
                     key_error = str(exc)
 
+            tracking_error = ""
+            if key_status and track_usage:
+                try:
+                    usage_tracker.record_key_snapshot(key_status)
+                except OSError:
+                    tracking_error = "Could not save local credit history."
+
             response = {
                 "ok": True,
                 "title": PLUGIN_TITLE,
                 "as_of": _utc_now(),
                 "cached": False,
+                "tracking_error": tracking_error,
                 "config": {
                     "dashboard_url": str(config.get("dashboard_url") or DEFAULT_CONFIG["dashboard_url"]),
                     "refresh_interval_seconds": _int_in_range(
