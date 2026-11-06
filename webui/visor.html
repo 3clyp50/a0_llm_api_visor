@@ -80,7 +80,7 @@
           <span x-text="$store.a0LlmApiVisor.resetLabel()"></span>
         </div>
 
-        <div class="a0-llm-api-visor-detail" x-show="$store.a0LlmApiVisor.showDetailLine()">
+        <div class="a0-llm-api-visor-detail" role="status" x-show="$store.a0LlmApiVisor.error || $store.a0LlmApiVisor.showDetailLine()">
           <span x-text="$store.a0LlmApiVisor.detailLabel()"></span>
         </div>
 
@@ -267,6 +267,11 @@
 
   .a0-llm-api-visor-detail {
     min-height: 1rem;
+  }
+
+  .a0-llm-api-visor.stale .a0-llm-api-visor-detail span {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   .a0-llm-api-visor-wallet .material-symbols-outlined {

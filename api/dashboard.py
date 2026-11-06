@@ -15,7 +15,7 @@ from usr.plugins.a0_llm_api_visor.helpers import usage_tracker
 
 PLUGIN_NAME = "a0_llm_api_visor"
 PLUGIN_TITLE = "LLM API Visor"
-PLUGIN_VERSION = "0.3.1"
+PLUGIN_VERSION = "0.3.2"
 ALLOWED_API_HOSTS = {"api.agent-zero.ai", "tapi.agent-zero.ai"}
 
 DEFAULT_CONFIG = {

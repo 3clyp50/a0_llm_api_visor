@@ -45,9 +45,15 @@ export const store = createStore("a0LlmApiVisor", {
     if (this.loading) return;
     this.loading = true;
     this.error = "";
+    let timeout;
 
     try {
-      const result = await api.callJsonApi("plugins/a0_llm_api_visor/dashboard", { force });
+      const result = await Promise.race([
+        api.callJsonApi("plugins/a0_llm_api_visor/dashboard", { force }),
+        new Promise((_, reject) => {
+          timeout = globalThis.setTimeout(() => reject(new Error("Balance request timed out. Please retry.")), 30000);
+        }),
+      ]);
       if (!result?.ok) {
         throw new Error(result?.error || "Could not load Agent Zero LLM API data.");
       }
@@ -64,6 +70,7 @@ export const store = createStore("a0LlmApiVisor", {
       if (!silent) void toastFrontendError(this.error, SOURCE_TITLE);
       this.schedulePoll();
     } finally {
+      globalThis.clearTimeout(timeout);
       this.loading = false;
     }
   },
@@ -198,6 +205,7 @@ export const store = createStore("a0LlmApiVisor", {
   },
 
   detailLabel() {
+    if (this.error) return this.error;
     const summary = this.summary();
     if (summary.mode === "key") return `Remaining today: ${this.formatMoney(summary.user_remaining_quota, 2)}`;
     if (summary.mode === "needs_key") return "Configure the Agent Zero API key in model settings";

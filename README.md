@@ -33,6 +33,10 @@ anonymous wallet lookup is no longer used. Existing wallet-address and private
 cache settings are ignored. A disabled or expired key displays its status;
 missing or invalid credentials display an unavailable state.
 
+Refreshes stop waiting after 30 seconds and display an error instead of spinning
+indefinitely. If the API cannot be reached after changing networks, restarting
+the Agent Zero Docker container refreshes its network DNS settings.
+
 ## Community Plugin Layout
 
 This directory is ready to be used as the root of a standalone community plugin

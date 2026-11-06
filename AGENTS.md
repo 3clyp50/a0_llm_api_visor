@@ -21,6 +21,8 @@ Standalone Agent Zero sidebar plugin for the configured API key's remaining allo
 ## Local Contracts
 
 Keep `plugin.yaml` version and `api/dashboard.py` `PLUGIN_VERSION` in sync.
+Bound sidebar refreshes to 30 seconds and show failures even when the optional
+detail line is hidden. Late responses must not overwrite a newer refresh.
 
 Only official HTTPS API roots on port 443 are accepted. Credential-bearing
 requests must not follow redirects. Never return keys, labels, wallet identities,
@@ -34,4 +36,5 @@ existing framework authentication and CSRF protection.
 missing/rotated credentials, public-only mode, opt-in recording, UTC daily credit
 merging, legacy preservation, and the HTTP trust boundary using mocks.
 `node test_insights.mjs` checks credit-only views, activity, and legacy model data.
+`node test_visor.mjs` checks refresh timeouts, retries, errors, and late responses.
 `node --check webui/visor-store.js` checks browser-module syntax.
